@@ -1,0 +1,4 @@
+/build
+
+#navtiveBuild的部分全部ignore
+.externalNativeBuild/
