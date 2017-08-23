@@ -17,9 +17,10 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import haibao.com.ffmpegkit.FFmpegKit;
 import haibao.com.ffmpegkit.bean.CommandType;
 import haibao.com.ffmpegkit.business.CmdDistribution;
-import haibao.com.utilscollection.io.SharedPreferencesUtils;
+import haibao.com.ffmpegkit.utils.SharedPreferencesUtils;
 
 import static haibao.com.ffmpegkit.business.impl.TaskC.AUDIO_LEVEL;
 import static haibao.com.ffmpegkit.business.impl.TaskC.OUT_LEVEL;
@@ -114,18 +115,18 @@ public class CmdDistributionImpl implements CmdDistribution, AbsTask.TaskComplet
     }
 
     private void setToSharePref(CommandType command) {
-        HashMap<String, String> command_list = SharedPreferencesUtils.getObject("Command_list", HashMap.class);
+        HashMap<String, String> command_list = SharedPreferencesUtils.getObject(FFmpegKit.getContext(),"Command_list", HashMap.class);
         commandTypes.add(command);
         String s1 = gson.toJson(commandTypes, type);
         if (command_list == null) {
             command_list = new HashMap<>();
         }
         command_list.put(lastCourseId, s1);
-        SharedPreferencesUtils.setObject("Command_list", command_list);
+        SharedPreferencesUtils.setObject(FFmpegKit.getContext(),"Command_list", command_list);
     }
 
     private ArrayList<CommandType> getFromSharePref(String course_id) {
-        HashMap<String, String> command_list = SharedPreferencesUtils.getObject("Command_list", HashMap.class);
+        HashMap<String, String> command_list = SharedPreferencesUtils.getObject(FFmpegKit.getContext(),"Command_list", HashMap.class);
         if (command_list == null) {
             command_list = new HashMap<>();
         }
@@ -140,7 +141,7 @@ public class CmdDistributionImpl implements CmdDistribution, AbsTask.TaskComplet
             //再设置回去。
             String s1 = gson.toJson(getFromList, type);
             command_list.put(course_id, s1);
-            SharedPreferencesUtils.setObject("Command_list", command_list);
+            SharedPreferencesUtils.setObject(FFmpegKit.getContext(),"Command_list", command_list);
         }
         return getFromList;
     }
