@@ -51,40 +51,9 @@ public class FFmpegManager {
     private Messenger mService;
     private boolean isBinding = false;
     private int resumeTaskCourseId;
-
-    private ServiceConnection mConnection = new ServiceConnection() {
-        @Override
-        public void onServiceConnected(ComponentName name, IBinder service) {
-            mService = new Messenger(service);
-            isBinding = true;
-            Log.i(TAG, "绑定成功");
-            //如果是回复任务。则
-
-            if (!mTempCommandTypes.isEmpty()) {
-                for (CommandType tempCommandType : mTempCommandTypes) {
-                    sendComandType(tempCommandType);
-                }
-                mTempCommandTypes.clear();
-            }
-
-            if (isToResumeTask) {
-                //发送回复command
-                if (resumeTaskCourseId != 0) {
-                    sendResumeTask(String.valueOf(resumeTaskCourseId));
-                }
-            }
-        }
-
-        @Override
-        public void onServiceDisconnected(ComponentName name) {
-            mService = null;
-            isBinding = false;
-            Log.i(TAG, "断开连接");
-        }
-    };
-
     //记录command的index
     private int commandIndex = 0;
+    private boolean isStartScaleVideo;
     //处理来自进程B回复的消息
     private Messenger mMessenger = new Messenger(new Handler(Looper.getMainLooper()) {
         @Override
@@ -97,6 +66,7 @@ public class FFmpegManager {
 //                        Toast.makeText(context, "完成混音任务！！速速去查看", Toast.LENGTH_SHORT).show();
                         break;
                     case SCALE_VIDEO_SUCCESS:
+                        isStartScaleVideo = false;
                         Bundle data = msg.getData();
                         String outputPath = data.getString(SCALE_VIDEO_OUTPATH);
                         if (mOnScaleListener != null) {
@@ -104,6 +74,7 @@ public class FFmpegManager {
                         }
                         break;
                     case SCALE_VIDEO_ERROR:
+                        isStartScaleVideo = false;
 //                    Toast.makeText(context, "视频任务失败", Toast.LENGTH_SHORT).show();
                         if (mOnScaleListener != null) {
                             mOnScaleListener.onScaleVideoError();
@@ -112,6 +83,7 @@ public class FFmpegManager {
                     case SCALE_VIDEO_PROGRESS:
                         int progress = msg.arg2;
                         System.out.println("ffmpeg progress=" + msg.arg2);
+                        isStartScaleVideo = true;
                         //传递给callBack
                         if (mOnScaleListener != null) {
                             mOnScaleListener.onScaleVideoProgress(progress);
@@ -161,6 +133,51 @@ public class FFmpegManager {
     });
     private ArrayList<CommandType> mTempCommandTypes = new ArrayList<>();
     private boolean isToResumeTask;
+    private ServiceConnection mConnection = new ServiceConnection() {
+        @Override
+        public void onServiceConnected(ComponentName name, IBinder service) {
+            mService = new Messenger(service);
+            isBinding = true;
+            Log.i(TAG, "绑定成功");
+            //如果是回复任务。则
+
+            if (isStartScaleVideo) {    //需要重新提交任务？
+                sendScaleVideoPath(type, ration, path, mOnScaleListener);
+            }
+
+//            if (!mTempCommandTypes.isEmpty()) {
+//                for (CommandType tempCommandType : mTempCommandTypes) {
+//                    sendComandType(tempCommandType);
+//                }
+//                mTempCommandTypes.clear();
+//            }
+//
+//            if (isToResumeTask) {
+//                //发送回复command
+//                if (resumeTaskCourseId != 0) {
+//                    sendResumeTask(String.valueOf(resumeTaskCourseId));
+//                }
+//            }
+        }
+
+        @Override
+        public void onServiceDisconnected(ComponentName name) {
+            mService = null;
+            isBinding = false;
+            Log.i(TAG, "断开连接");
+            //重新绑定？
+            try {
+                bindRemoteService(content);
+            } catch (Exception e) {
+                e.printStackTrace();
+                Log.d(TAG, e.getMessage());
+            }
+        }
+    };
+    private Context content;
+    private int ration;
+    private String path;
+    private int type;
 
     private FFmpegManager() {
 
@@ -174,6 +191,7 @@ public class FFmpegManager {
     }
 
     public void bindRemoteService(Context context) {
+        this.content = context;
         //绑定进程B的服务
         context.bindService(new Intent(context, FFmpegRemoteService.class), mConnection, BIND_AUTO_CREATE);
     }
@@ -199,7 +217,7 @@ public class FFmpegManager {
     public boolean isBinding() {
         if (isBinding && mConnection != null && mService != null) {
             return true;
-        }else {
+        } else {
             return false;
         }
     }
@@ -210,6 +228,10 @@ public class FFmpegManager {
             context.unbindService(mConnection);
         }
         mOnScaleListener = null;
+        content = null;
+        ration = 0;
+        path = null;
+        type = 0;
     }
 
     public void sendCommand(CommandType commandType) {
@@ -288,6 +310,10 @@ public class FFmpegManager {
 
     //缩放视频的时候需要
     public void sendScaleVideoPath(int type, int rotation, String path, OnScaleListener mOnScaleListener) {
+        //将任务信息缓存起来
+        this.ration = rotation;
+        this.path = path;
+        this.type = type;
         this.mOnScaleListener = mOnScaleListener;
         Message message = Message.obtain(null, FFmpegRemoteService.SCALE_VIDEO);
         message.replyTo = mMessenger;

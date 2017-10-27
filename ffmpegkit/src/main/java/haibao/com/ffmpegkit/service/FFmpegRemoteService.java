@@ -1,16 +1,19 @@
 package haibao.com.ffmpegkit.service;
 
+import android.app.IntentService;
 import android.app.Notification;
 import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Intent;
 import android.graphics.BitmapFactory;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Message;
 import android.os.Messenger;
 import android.os.RemoteException;
+import android.support.annotation.Nullable;
 import android.text.TextUtils;
 import android.util.Log;
 
@@ -28,6 +31,7 @@ import static haibao.com.ffmpegkit.FFmpegManager.SCALE_IMG_OUTPATH;
 import static haibao.com.ffmpegkit.FFmpegManager.SCALE_VIDEO_OUTPATH;
 
 public class FFmpegRemoteService extends Service {
+    private static int notificationId = -1119860800;
 
     public static final int GET_RESULT = 1;
     public static final int SCALE_VIDEO = 2;
@@ -59,7 +63,7 @@ public class FFmpegRemoteService extends Service {
     private ProgressCallBack mProgressCallBack = new ProgressCallBack() {
         @Override
         public void onFinalTaskCompleted(String outputPath) {
-            isRunning=false;
+            isRunning = false;
             //完整的合并完视频
             System.out.println("onFinalTaskCompleted" + outputPath);
             if (mReplyTo != null) {
@@ -106,31 +110,10 @@ public class FFmpegRemoteService extends Service {
 
         @Override
         public void onFinalTaskError(String outputPath) {
-            isRunning=false;
+            isRunning = false;
             sendErrorToRemote(outputPath);
         }
     };
-
-    private void sendErrorToRemote(String outputPath) {
-        System.out.println("onFinalTaskError" + outputPath);
-        if (mReplyTo != null) {
-            System.out.println("mReplyTo onFinalTaskError" + outputPath);
-            Bundle resultBundle = new Bundle();
-            Message obtain = Message.obtain(null, RESULT_OK);
-            obtain.arg1 = FINAL_ERROR;
-            obtain.setData(resultBundle);
-            try {
-                mReplyTo.send(obtain);
-            } catch (RemoteException e) {
-                e.printStackTrace();
-            }
-        } else {
-            System.out.println("mReplyTo ==null");
-        }
-    }
-
-//    private boolean isFinalTaskSetFlag; //是否发送到最后的任务
-
     //通信模块
     private final Messenger mMessenger = new Messenger(new Handler() {
 
@@ -138,7 +121,7 @@ public class FFmpegRemoteService extends Service {
         public void handleMessage(Message msg) {
             Bundle bundle = msg.getData();
             mReplyTo = msg.replyTo;
-            isRunning=true;
+            isRunning = true;
             switch (msg.what) {
                 case GET_RESULT:
                     try {
@@ -268,6 +251,8 @@ public class FFmpegRemoteService extends Service {
         }
     });
 
+//    private boolean isFinalTaskSetFlag; //是否发送到最后的任务
+
     public FFmpegRemoteService() {
         mCmdDistribution = new CmdDistributionImpl3(this);
         initCrash();
@@ -275,9 +260,34 @@ public class FFmpegRemoteService extends Service {
 
     }
 
+    private void sendErrorToRemote(String outputPath) {
+        System.out.println("onFinalTaskError" + outputPath);
+        if (mReplyTo != null) {
+            System.out.println("mReplyTo onFinalTaskError" + outputPath);
+            Bundle resultBundle = new Bundle();
+            Message obtain = Message.obtain(null, RESULT_OK);
+            obtain.arg1 = FINAL_ERROR;
+            obtain.setData(resultBundle);
+            try {
+                mReplyTo.send(obtain);
+            } catch (RemoteException e) {
+                e.printStackTrace();
+            }
+        } else {
+            System.out.println("mReplyTo ==null");
+        }
+    }
+
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         // 在API11之后构建Notification的方式
+        Log.d(TAG, "onStartCommand");
+//        sendNotification();
+//        increasingPriority();
+        return super.onStartCommand(intent, flags, startId);
+    }
+
+    private void sendNotification() {
         Notification.Builder builder = new Notification.Builder
                 (getApplicationContext()); //获取一个Notification构造器
         Intent nfIntent = new Intent();
@@ -296,8 +306,6 @@ public class FFmpegRemoteService extends Service {
 
 
         startForeground(SERVERCE_NOTIFICATION_UID, notification);// 开始前台服务
-
-        return super.onStartCommand(intent, flags, startId);
     }
 
 
@@ -306,7 +314,7 @@ public class FFmpegRemoteService extends Service {
         Thread.setDefaultUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler() {
             @Override
             public void uncaughtException(Thread thread, final Throwable ex) {
-                isRunning=false;
+                isRunning = false;
                 //调用reply
                 sendErrorToRemote("");
 
@@ -321,9 +329,32 @@ public class FFmpegRemoteService extends Service {
         });
     }
 
+
+    private void increasingPriority() {
+//        if (Build.VERSION.SDK_INT > 24) {
+//            TinkerLog.i(TAG, "for Android 7.1, we just ignore increasingPriority job");
+//            return;
+//        }
+        Log.i(TAG, "try to increase patch process priority");
+        try {
+            Notification notification = new Notification();
+            if (Build.VERSION.SDK_INT < 18) {
+                startForeground(notificationId, notification);
+            } else {
+                startForeground(notificationId, notification);
+                // start InnerService
+                startService(new Intent(this, InnerService.class));
+            }
+        } catch (Throwable e) {
+            Log.i(TAG, "try to increase patch process priority error:" + e);
+        }
+    }
+
     @Override
     public void onCreate() {
         super.onCreate();
+//        increasingPriority();
+        Log.d(TAG, "onCreate");
 //        mExecutorService = Executors.newFixedThreadPool(1);
 //        mTempMp4OutputPaths = new ArrayList<>();
 //        mTempDuration = new ArrayList<>();
@@ -331,6 +362,9 @@ public class FFmpegRemoteService extends Service {
 
     @Override
     public IBinder onBind(Intent intent) {
+        Log.d(TAG, "onBind");
+        sendNotification();
+        increasingPriority();
         return mMessenger.getBinder();
     }
 
@@ -373,6 +407,7 @@ public class FFmpegRemoteService extends Service {
     }
 
     private void startNewThreadForProgress() {
+//
         new Thread(new Runnable() {
             @Override
             public void run() {
@@ -384,10 +419,17 @@ public class FFmpegRemoteService extends Service {
                         //发送消息给客户端
                         sendFinalMessge(SCALE_VIDEO_PROGRESS, mProcess);
                     }
+                    try {
+                        Thread.sleep(1000L);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
                 }
                 mProcess = 0;
             }
         }).start();
+//        Intent intent = new Intent(this, Inner2Service.class);
+//        startService(intent);
     }
 
     //停止当前的任务
@@ -398,10 +440,67 @@ public class FFmpegRemoteService extends Service {
 
     @Override
     public void onDestroy() {
+        Log.d(TAG,"onDestroy");
         //刷新一下是否运行完任务。
         if (mCmdDistribution != null) {
             mCmdDistribution.onDestroy();
         }
         super.onDestroy();
     }
+
+    /**
+     * I don't want to do this, believe me
+     */
+    //InnerService
+    public static class InnerService extends Service {
+        @Override
+        public void onCreate() {
+            super.onCreate();
+            try {
+                startForeground(notificationId, new Notification());
+            } catch (Throwable e) {
+                Log.e("FFmpegRemoteService", "InnerService set service for push exception:%s.", e);
+            }
+            // kill
+            stopSelf();
+        }
+
+        @Override
+        public void onDestroy() {
+            stopForeground(true);
+            super.onDestroy();
+        }
+
+        @Override
+        public IBinder onBind(Intent intent) {
+            return null;
+        }
+    }
+
+    public class Inner2Service extends IntentService {
+        /**
+         * Creates an IntentService.  Invoked by your subclass's constructor.
+         *
+         * @param name Used to name the worker thread, important only for debugging.
+         */
+        public Inner2Service(String name) {
+            super(name);
+        }
+
+        @Override
+        protected void onHandleIntent(@Nullable Intent intent) {
+            while (mProcess < 100) {
+                int process = FFmpegJNIWrapper.call_progress(FFmpegRemoteService.this);
+                if (mProcess != process) {
+                    mProcess = process;
+                    System.out.println("FFMPEG REMOTE progresss==" + mProcess);
+                    //发送消息给客户端
+                    sendFinalMessge(SCALE_VIDEO_PROGRESS, mProcess);
+                }
+            }
+            mProcess = 0;
+        }
+    }
+
+
 }

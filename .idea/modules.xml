@@ -3,7 +3,10 @@
   <component name="ProjectModuleManager">
     <modules>
       <module fileurl="file://$PROJECT_DIR$/FFmpegKit.iml" filepath="$PROJECT_DIR$/FFmpegKit.iml" />
+      <module fileurl="file://$PROJECT_DIR$/FFmpegKit.iml" filepath="$PROJECT_DIR$/FFmpegKit.iml" />
       <module fileurl="file://$PROJECT_DIR$/app/app.iml" filepath="$PROJECT_DIR$/app/app.iml" />
+      <module fileurl="file://$PROJECT_DIR$/app/app.iml" filepath="$PROJECT_DIR$/app/app.iml" />
+      <module fileurl="file://$PROJECT_DIR$/ffmpegkit/ffmpegkit.iml" filepath="$PROJECT_DIR$/ffmpegkit/ffmpegkit.iml" />
       <module fileurl="file://$PROJECT_DIR$/ffmpegkit/ffmpegkit.iml" filepath="$PROJECT_DIR$/ffmpegkit/ffmpegkit.iml" />
     </modules>
   </component>
